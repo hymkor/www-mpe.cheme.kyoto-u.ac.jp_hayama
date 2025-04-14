@@ -1,24 +1,27 @@
-$sourceRoot = Get-Location
-$targetRoot = Join-Path $sourceRoot "docs"
+function mirror($src,$dst){
+    Get-ChildItem -Path $src | ForEach-Object {
+        $name = $_.Name
+        if ( $name.StartsWith(".") -or $name -in @("docs","utf8.ps1") ){
+            return
+        }
+        $newname = (Join-Path -Path $dst -ChildPath $name)
+        Write-Host ("{0}`n-> {1}" -f $_.FullName,$newname)
+        if ( $_.PSIsContainer ){
+            if ( -not (Test-Path $newname) ){
+                New-Item -Path $newname -ItemType "Directory"
+            }
+            mirror ($_.FullName) $newname
+        } else {
+            if ($name -match '\.html?$') {
+                nkf32 -w $_.FullName | perl -pe 'binmode(STDIN);binmode(STDOUT);s|"/image/|"/www-mpe.cheme.kyoto-u.ac.jp_hayama/img/|g' > $newname
 
-Get-ChildItem -Recurse -File | Where-Object {
-    -not $_.FullName.StartsWith((Join-Path $sourceRoot "docs")) -and
-    -not $_.Name.StartsWith(".") -and
-    -not $_.Name.EndsWith(".ps1")
-} | ForEach-Object {
-    $sourceFile = $_.FullName
-    $relativePath = $sourceFile.Substring($sourceRoot.Path.Length).TrimStart('\', '/')
-    $targetFile = Join-Path $targetRoot $relativePath
+            } else {
+                Copy-Item $_.FullName $newname -Force
+            }
+        }
+    } | Out-Null
+}
 
-    $targetDir = Split-Path $targetFile
-    if (-not (Test-Path $targetDir)) {
-        New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
-    }
-
-    Write-Host "$sourceFile`n-> $targetFile"
-    if ($sourceFile -match '\.html?$') {
-        nkf32 -J -w8 $sourceFile > $targetFile
-    } else {
-        Copy-Item $sourceFile $targetFile -Force
-    }
-} | Out-Null
+$src = (Get-Location)
+$dst = (Join-Path -Path $src -ChildPath "docs")
+mirror $src $dst
