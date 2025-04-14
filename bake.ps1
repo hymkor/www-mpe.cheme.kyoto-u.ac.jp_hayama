@@ -1,7 +1,19 @@
-function mirror($src,$dst){
+Set-PSDebug -Strict
+
+function bake{
+    param(
+        [string]$src=".",
+        [string]$dst="docs",
+        [ScriptBlock]$filter = {
+            Param( [string]$src , [string]$dst )
+            nkf32 -w $src > $dst
+        }
+    )
+    Set-PSDebug -Strict
+
     Get-ChildItem -Path $src | ForEach-Object {
         $name = $_.Name
-        if ( $name.StartsWith(".") -or $name -in @("docs","utf8.ps1") ){
+        if ( $name.StartsWith(".") -or $name -eq "docs" -or $name.EndsWith(".ps1") ){
             return
         }
         $newname = (Join-Path -Path $dst -ChildPath $name)
@@ -10,11 +22,10 @@ function mirror($src,$dst){
             if ( -not (Test-Path $newname) ){
                 New-Item -Path $newname -ItemType "Directory"
             }
-            mirror ($_.FullName) $newname
+            bake ($_.FullName) $newname $filter
         } else {
             if ($name -match '\.html?$') {
-                nkf32 -w $_.FullName | perl -pe 'binmode(STDIN);binmode(STDOUT);s|"/image/|"/www-mpe.cheme.kyoto-u.ac.jp_hayama/img/|g' > $newname
-
+                & $filter $_.FullName $newname
             } else {
                 Copy-Item $_.FullName $newname -Force
             }
@@ -22,6 +33,6 @@ function mirror($src,$dst){
     } | Out-Null
 }
 
-$src = (Get-Location)
-$dst = (Join-Path -Path $src -ChildPath "docs")
-mirror $src $dst
+if ($MyInvocation.InvocationName -ne '.') {
+    bake "." "docs"
+}
